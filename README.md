@@ -27,6 +27,7 @@ Type Error: Type 'tensor(bfloat16)' of input parameter (hidden_states) of operat
 transformers                      4.49.0.dev0
 ```
 需要修改其中的 `modeling_qwen2_5_vl.py`和`modeling_qwen2_vl.py`，由于`modeling_qwen2_5_vl.py`是由`modular_qwen2_5_vl.py`生成的，所以同步修改了`modular_qwen2_5_vl.py`。
+需要替换transformer库中的这几个文件才能进行下面的onnx导出过程。
 
 ### 导出过程
 
