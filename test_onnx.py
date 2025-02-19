@@ -1,9 +1,9 @@
 import torch
-from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor
+from transformers import Qwen2_5_VLForConditionalGenerationExport, AutoTokenizer, AutoProcessor
 from qwen_vl_utils import process_vision_info
 
 # default: Load the model on the available device(s)
-model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+model = Qwen2_5_VLForConditionalGenerationExport.from_pretrained(
     "./", torch_dtype=torch.float16, device_map="cuda"
 )
 

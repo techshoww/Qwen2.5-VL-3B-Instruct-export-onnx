@@ -1,7 +1,7 @@
 export CUDA_VISIBLE_DEVICES=7
 
+set -e 
+
 python run.py
 python export.py 
-
-python export_vision.py
-python merge_vision.py
+python test_onnx.py
