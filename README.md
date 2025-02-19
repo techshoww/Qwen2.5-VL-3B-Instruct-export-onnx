@@ -21,13 +21,16 @@ Type Error: Type 'tensor(bfloat16)' of input parameter (hidden_states) of operat
 * 模型前部对 `hidden_states`和`rotary_pos_emb`的顺序编排可以放在模型外面
 * 由 `cu_seqlens`生成`attention_mask`的过程  
 * torch 自带的 `torch.nn.functional.scaled_dot_product_attention`导出报错，需要自定义  
+修改逻辑见 modeling_qwen2_5_vl_export.py  
 
 本代码依赖[Transformer](https://github.com/huggingface/transformers.git)库
 ```
 transformers                      4.49.0.dev0
 ```
-需要修改其中的 `modeling_qwen2_5_vl.py`和`modeling_qwen2_vl.py`，由于`modeling_qwen2_5_vl.py`是由`modular_qwen2_5_vl.py`生成的，所以同步修改了`modular_qwen2_5_vl.py`。
-需要替换transformer库中的这几个文件才能进行下面的onnx导出过程。
+安装命令：
+```
+pip install git+https://github.com/huggingface/transformers.git@v4.49.0
+```
 
 ### 导出过程
 

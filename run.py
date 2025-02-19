@@ -1,9 +1,10 @@
 import torch
-from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor
+from transformers import  AutoTokenizer, AutoProcessor
+from modeling_qwen2_5_vl_export import Qwen2_5_VLForConditionalGenerationInfer
 from qwen_vl_utils import process_vision_info
 
 # default: Load the model on the available device(s)
-model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+model = Qwen2_5_VLForConditionalGenerationInfer.from_pretrained(
     "./", torch_dtype=torch.float16, device_map="cuda"
 )
 
@@ -50,7 +51,7 @@ inputs = processor(
     padding=True,
     return_tensors="pt",
 )
-print("inputs",inputs)
+
 inputs = inputs.to("cuda")
 
 # Inference: Generation of the output
