@@ -25,7 +25,7 @@ Type Error: Type 'tensor(bfloat16)' of input parameter (hidden_states) of operat
 
 本代码依赖[Transformer](https://github.com/huggingface/transformers.git)库
 ```
-transformers                      4.49.0.dev0
+transformers                      4.49.0
 ```
 安装命令：
 ```
