@@ -5,7 +5,7 @@ from qwen_vl_utils import process_vision_info
 
 # default: Load the model on the available device(s)
 model = Qwen2_5_VLForConditionalGenerationInfer.from_pretrained(
-    "./", torch_dtype=torch.float16, device_map="cuda"
+    "./", torch_dtype=torch.float32, device_map="cuda"
 )
 
 # We recommend enabling flash_attention_2 for better acceleration and memory saving, especially in multi-image and video scenarios.

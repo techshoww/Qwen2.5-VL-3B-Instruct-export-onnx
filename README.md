@@ -1,21 +1,49 @@
 ## [Qwen2.5-VL-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct) Vision Encoder 导出 onnx
 
-对于小尺寸的图片，Vision Encoder 可以直接导出。基本上能够满足端侧部署的需求。
-如果图片尺寸比较大，直接导出会在onnxsim.simplify时报错。这时可以考虑分层导出，然后再合并。目前分层导出没有问题，但是合并时也会莫名其妙的报错。这条路线暂时搁置。
-
-### torch_dtype设置  
-模型导出时需要设置`torch_dtype=torch.float16`。
-1. 设置为 `torch_dtype=torch.float32`，会在 onnxsim.simplify时报错
+### 导出方案
+该模型的Vision Encoder 比较大，超过了2G，有些特殊。
+所以有两种导出方式：
+#### 1. 导出为一个onnx  
+这时要注意，进行simpilify时不能用python API `onnxsim.simplify`，用这个API会报错：
 ```
 packages/onnxsim/onnx_simplifier.py", line 199, in simplify
     model_opt_bytes = C.simplify(
                       ^^^^^^^^^^^
 RuntimeError: The model does not have an ir_version set properly.
 ```
-2. 设置为 `torch_dtype=torch.bfloat16`(auto) 会在onnxruntime阶段报错算子不支持
+报这个错并不是因为没有设置 opset_version或ir_version，是因为太大了，这个API处理不了。
+
+应该使用二进制程序 `onnxsim`，只要安装了python onnxsim 就会有这个程序。执行命令
 ```
-Type Error: Type 'tensor(bfloat16)' of input parameter (hidden_states) of operator (Cast) in node (/blocks.0/norm1/Cast) is invalid.
+onnxsim {input onnx} {output onnx}
 ```
+命令执行完成后会导出两个文件，一个后缀名为".onnx"，存放计算图。一个后缀名为".onnx.data"，存放权重数据。
+
+#### 2. 导出为多个onnx  
+把模型forward逻辑切开，导出为多个onnx。这个模型最少导出为两个部分（图片尺寸448x448），如果图片尺寸比较大，需要切分为更多部分。
+这种方式可以使用python API `onnxsim.simplify`。
+
+需要注意这种方式导出的模型虽然可以合并成功，但是合并后再load时还会报错。
+合并后onnx.load会报错：
+```
+google.protobuf.message.DecodeError: Error parsing message with type 'onnx.ModelProto'
+```
+
+#### 3. 低精度导出为一个onnx  
+将 `torch_dtype` 设置为 `torch.float16` 或 `torch.bfloat16` 时可以导出为一个onnx。
+注意若设置为 `torch.bfloat16`，导出的模型不能用python onnxruntime进行推理，模型编译可能也会遇到问题（工具链中如果使用了python）
+**原因是 numpy 对 `bfloat16` 支持不完善。可以用C++ onnxruntime 进行 inference.**
+
+
+**总结一下：**
+
+| 精度 | 导出为一个onnx | 导出为多个onnx |
+|------|------|--------|
+| float32 | 需要使用二进制onnxsim程序进行simplify。计算图和权重数据分离。   | 可以按照常规onnx处理 |
+| float16 | 可以导出为一个onnx。有精度问题，sigmoid和mul融合为SiLu算子时精度误差较大。   | 不需要 |
+| bfloat16 | numpy不支持bfloat16，在后续的使用时也会遇到问题。   | 不需要 |
+
+
 ### 代码修改  
 有些操作不适合在模型中做，我们需要推理过程做一些修改。比如：
 * 模型前部对 `hidden_states`和`rotary_pos_emb`的顺序编排可以放在模型外面
@@ -34,7 +62,7 @@ pip install git+https://github.com/huggingface/transformers.git@v4.49.0
 
 ### 导出过程
 
-#### 对于小尺寸图片输入
+#### 导出为一个onnx
 1. 生成导出onnx需要的输入
 ```
 python run.py
@@ -48,17 +76,16 @@ python export.py
 python test_onnx.py
 ```
 
-#### 对于大尺寸图片输入
+#### 导出为两个onnx
 1. 生成导出onnx需要的输入
 ```
 python run.py
 ```
 2. 分层导出onnx
 ```
-python export_vision.py
+python export_two_parts.py
 ```
-3. 融合onnx  
-**目前这一步还没有调通**，融合后的模型load时会报错。实在融合不了可以分层推理。  
+3. 测试onnx
 ```
-python merge_vision.py
+python test_onnx.py two_parts
 ```

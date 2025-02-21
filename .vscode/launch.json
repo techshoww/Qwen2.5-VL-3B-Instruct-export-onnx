@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "python": "/home/lihongjie/miniforge-pypy3/envs/vllm/bin/python", 
+            "console": "integratedTerminal",
+            "justMyCode": false 
+        }
+    ]
+}

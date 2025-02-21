@@ -9,6 +9,7 @@ from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import Qwen2_5_VLVisionS
                                                                 Qwen2_5_VisionTransformerPretrainedModel,\
                                                                 Qwen2_5_VLForConditionalGeneration
 import onnxruntime as ort
+import numpy as np
 
 # Efficient implementation equivalent to the following:
 def scaled_dot_product_attention(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None) -> torch.Tensor:
@@ -170,33 +171,109 @@ class Qwen2_5_VisionTransformerPretrainedModelInfer(Qwen2_5_VisionTransformerPre
 
         return hidden_states
 
+
+def generate_attnmask(seq_length, cu_seqlens):
+    attention_mask = torch.zeros([1, seq_length, seq_length],  dtype=torch.bool)
+    for i in range(1, len(cu_seqlens)):
+        attention_mask[..., cu_seqlens[i - 1] : cu_seqlens[i], cu_seqlens[i - 1] : cu_seqlens[i]] = True
+
+    return attention_mask
+
 class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPretrainedModel):
 
     def __init__(self, config, *inputs, **kwargs) -> None:
         super().__init__(config, *inputs, **kwargs)
         
+        h = torch.load("hidden_states.pth")
+        cu_seqlens = torch.load("cu_seqlens.pth")
+        cu_window_seqlens = torch.load("cu_window_seqlens.pth")
+
+        seq_length = h.shape[0]
+        self.attention_mask = generate_attnmask(seq_length, cu_seqlens)
+        self.attention_mask_window = generate_attnmask(seq_length, cu_window_seqlens)
+
+        self.rotary_pos_emb_ = torch.load("rotary_pos_emb.pth")
+
+        window_index = torch.load("window_index.pth")
+        self.reverse_indices = torch.argsort(window_index)
 
         self.blocks = nn.ModuleList(
             [Qwen2_5_VLVisionBlockExport(config, config._attn_implementation) for _ in range(config.depth)]
         )
     
-    def forward_export(self, hidden_states, rotary_pos_emb, attention_mask, attention_mask_window, window_index):
+    def forward_export(self, hidden_states):
+
+        device = hidden_states.device
+        self.attention_mask = self.attention_mask.to(device)
+        self.attention_mask_window = self.attention_mask_window.to(device)
+        self.rotary_pos_emb_ = self.rotary_pos_emb_.to(device)
+        self.reverse_indices = self.reverse_indices.to(device)
 
         for layer_num, blk in enumerate(self.blocks):
             if layer_num in self.fullatt_block_indexes:
-                attention_mask_now = attention_mask
+                attention_mask_now = self.attention_mask
             else:
-                attention_mask_now = attention_mask_window
+                attention_mask_now = self.attention_mask_window
 
             hidden_states = blk(
                 hidden_states,
                 attention_mask=attention_mask_now,
-                rotary_pos_emb=rotary_pos_emb,
+                rotary_pos_emb=self.rotary_pos_emb_,
             )
 
         hidden_states = self.merger(hidden_states)
-        reverse_indices = torch.argsort(window_index)
-        hidden_states = hidden_states[reverse_indices, :]
+        # reverse_indices = torch.argsort(window_index)
+        hidden_states = hidden_states[self.reverse_indices, :]
+
+        return hidden_states
+
+    def forward_export_part1(self, hidden_states):
+
+        device = hidden_states.device
+        self.attention_mask = self.attention_mask.to(device)
+        self.attention_mask_window = self.attention_mask_window.to(device)
+        self.rotary_pos_emb_ = self.rotary_pos_emb_.to(device)
+
+        blocks_num = len(self.blocks)
+        for layer_num in range(blocks_num//2):
+            blk = self.blocks[layer_num]
+            if layer_num in self.fullatt_block_indexes:
+                attention_mask_now = self.attention_mask
+            else:
+                attention_mask_now = self.attention_mask_window
+
+            hidden_states = blk(
+                hidden_states,
+                attention_mask=attention_mask_now,
+                rotary_pos_emb=self.rotary_pos_emb_,
+            )
+        return hidden_states
+
+    def forward_export_part2(self, hidden_states, ):
+
+        device = hidden_states.device
+        self.attention_mask = self.attention_mask.to(device)
+        self.attention_mask_window = self.attention_mask_window.to(device)
+        self.rotary_pos_emb_ = self.rotary_pos_emb_.to(device)
+        self.reverse_indices = self.reverse_indices.to(device)
+
+        blocks_num = len(self.blocks)
+        for layer_num in range(blocks_num//2, blocks_num):
+            blk = self.blocks[layer_num]
+            if layer_num in self.fullatt_block_indexes:
+                attention_mask_now = self.attention_mask
+            else:
+                attention_mask_now = self.attention_mask_window
+
+            hidden_states = blk(
+                hidden_states,
+                attention_mask=attention_mask_now,
+                rotary_pos_emb=self.rotary_pos_emb_,
+            )
+
+        hidden_states = self.merger(hidden_states)
+        
+        hidden_states = hidden_states[self.reverse_indices, :]
 
         return hidden_states
 
@@ -255,45 +332,95 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
             dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
         )
         cu_seqlens = F.pad(cu_seqlens, (1, 0), value=0)
-        print("cu_seqlens",cu_seqlens)
-
-        # torch.save(hidden_states, "hidden_states.pth")
-        # torch.save(rotary_pos_emb, "rotary_pos_emb.pth")
-        # torch.save(cu_seqlens, "cu_seqlens.pth")
-        # torch.save(cu_window_seqlens, "cu_window_seqlens.pth")
-        # torch.save(window_index, "window_index.pth")
-        # for layer_num, blk in enumerate(self.blocks):
-        #     if layer_num in self.fullatt_block_indexes:
-        #         cu_seqlens_now = cu_seqlens
-        #     else:
-        #         cu_seqlens_now = cu_window_seqlens
-        #     if self.gradient_checkpointing and self.training:
-        #         hidden_states = self._gradient_checkpointing_func(
-        #             blk.__call__, hidden_states, cu_seqlens_now, rotary_pos_emb
-        #         )
-        #     else:
-        #         hidden_states = blk(
-        #             hidden_states,
-        #             cu_seqlens=cu_seqlens_now,
-        #             rotary_pos_emb=rotary_pos_emb,
-        #         )
-
-        # hidden_states = self.merger(hidden_states)
-        # reverse_indices = torch.argsort(window_index)
-        # hidden_states = hidden_states[reverse_indices, :]
 
         # return hidden_states
         print("test Vision Encoder Onnx -------------------")
-        session = ort.InferenceSession("Qwen2.5-VL-3B-Instruct_vision.onnx", providers=["CPUExecutionProvider"])
-        attention_mask = generate_attnmask(hidden_states.shape[0], cu_seqlens)
-        attention_mask_window = generate_attnmask(hidden_states.shape[0], cu_window_seqlens)
+        session1 = ort.InferenceSession("Qwen2.5-VL-3B-Instruct_vision.onnx", providers=["CPUExecutionProvider"])
+        
+        inputs = {"hidden_states": hidden_states.cpu().numpy().astype(np.float32),}
+        hidden_states = session1.run(["hidden_states_out"], inputs)[0]
+
+        hidden_states = torch.from_numpy(hidden_states).to(grid_thw.device)
+        return hidden_states
+
+    def forward_onnx_two_parts(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            hidden_states (`torch.Tensor` of shape `(batch_size, seq_len, hidden_size)`):
+                The final hidden states of the model.
+            grid_thw (`torch.Tensor` of shape `(num_images_or_videos, 3)`):
+                The temporal, height and width of feature shape of each image in LLM.
+
+        Returns:
+            `torch.Tensor`: hidden_states.
+        """
+        def generate_attnmask(seq_length, cu_seqlens):
+            attention_mask = torch.zeros([1, seq_length, seq_length], device=cu_seqlens.device, dtype=torch.bool)
+            for i in range(1, len(cu_seqlens)):
+                attention_mask[..., cu_seqlens[i - 1] : cu_seqlens[i], cu_seqlens[i - 1] : cu_seqlens[i]] = True
+
+            return attention_mask
+        print("Qwen2_5_VisionTransformerPretrainedModel grid_thw",grid_thw)
+        print("Qwen2_5_VisionTransformerPretrainedModel hidden_states",hidden_states.shape)              # [14308, 1176]
+        hidden_states = self.patch_embed(hidden_states)
+        rotary_pos_emb = self.rot_pos_emb(grid_thw)
+        print("rotary_pos_emb.shape",rotary_pos_emb.shape)      # [14308, 40]
+        window_index, cu_window_seqlens = self.get_window_index(grid_thw)
+        cu_window_seqlens = torch.tensor(
+            cu_window_seqlens,
+            device=hidden_states.device,
+            dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
+        )
+        cu_window_seqlens = torch.unique_consecutive(cu_window_seqlens)
+
+        print("hidden_states",hidden_states.shape)              # [14308, 1280]
+        print("window_index.shape",window_index.shape)
+        print("window_index[0:33]",window_index[0:33])
+        # window_index[0:33] tensor([  0,   1,   2,   3,  73,  74,  75,  76, 146, 147, 148, 149, 219, 220,
+        # 221, 222,   4,   5,   6,   7,  77,  78,  79,  80, 150, 151, 152, 153,
+        # 223, 224, 225, 226,   8])
+        seq_len, _ = hidden_states.size()
+        
+        hidden_states = hidden_states.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)  # 14308//4, 4, 1280  # patch index  2x2 合 1
+        hidden_states = hidden_states[window_index, :, :]                                                       # 安装 window 内patch的顺序编排                                              
+        hidden_states = hidden_states.reshape(seq_len, -1)
+        rotary_pos_emb = rotary_pos_emb.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)    
+        rotary_pos_emb = rotary_pos_emb[window_index, :, :]
+        rotary_pos_emb = rotary_pos_emb.reshape(seq_len, -1)
+
+        
+        cu_seqlens = torch.repeat_interleave(grid_thw[:, 1] * grid_thw[:, 2], grid_thw[:, 0]).cumsum(
+            dim=0,
+            # Select dtype based on the following factors:
+            #  - FA2 requires that cu_seqlens_q must have dtype int32
+            #  - torch.onnx.export requires that cu_seqlens_q must have same dtype as grid_thw
+            # See https://github.com/huggingface/transformers/pull/34852 for more information
+            dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
+        )
+        cu_seqlens = F.pad(cu_seqlens, (1, 0), value=0)
+
+        # return hidden_states
+        print("test Vision Encoder Onnx two parts-------------------")
+        session1 = ort.InferenceSession("Qwen2.5-VL-3B-Instruct_vision_part1.onnx", providers=["CPUExecutionProvider"])
+        session2 = ort.InferenceSession("Qwen2.5-VL-3B-Instruct_vision_part2.onnx", providers=["CPUExecutionProvider"])
+        # attention_mask = generate_attnmask(hidden_states.shape[0], cu_seqlens).to(torch.uint8)
+        # attention_mask_window = generate_attnmask(hidden_states.shape[0], cu_window_seqlens).to(torch.uint8)
        
-        inputs = {"hidden_states": hidden_states.cpu().numpy(),
-                    "rotary_pos_emb":rotary_pos_emb.cpu().numpy(),
-                    "attention_mask":attention_mask.cpu().numpy(),
-                    "attention_mask_window":attention_mask_window.cpu().numpy(),
-                    "window_index":window_index.cpu().numpy()}
-        hidden_states = session.run(["hidden_states_out"], inputs)[0]
+        inputs = {"hidden_states": hidden_states.cpu().numpy().astype(np.float32),
+                    # "rotary_pos_emb":rotary_pos_emb.cpu().numpy().astype(np.float32),
+                    # "attention_mask":attention_mask.cpu().numpy().astype(np.uint8),
+                    # "attention_mask_window":attention_mask_window.cpu().numpy().astype(np.uint8)
+                    }
+        hidden_states = session1.run(["hidden_states_out"], inputs)[0]
+
+        inputs = {"hidden_states": hidden_states,
+                    # "rotary_pos_emb":rotary_pos_emb.cpu().numpy().astype(np.float32),
+                    # "attention_mask":attention_mask.cpu().numpy().astype(np.uint8),
+                    # "attention_mask_window":attention_mask_window.cpu().numpy().astype(np.uint8),
+                    # "window_index":window_index.cpu().numpy().astype(np.int32)
+                    }
+        hidden_states = session2.run(["hidden_states_out"], inputs)[0]
+
         hidden_states = torch.from_numpy(hidden_states).to(grid_thw.device)
         return hidden_states
 

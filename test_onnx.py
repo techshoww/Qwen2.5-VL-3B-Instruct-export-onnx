@@ -2,12 +2,17 @@ import torch
 from transformers import  AutoTokenizer, AutoProcessor
 from modeling_qwen2_5_vl_export import Qwen2_5_VLForConditionalGenerationExport
 from qwen_vl_utils import process_vision_info
+import sys
 
 # default: Load the model on the available device(s)
 model = Qwen2_5_VLForConditionalGenerationExport.from_pretrained(
-    "./", torch_dtype=torch.float16, device_map="cuda"
+    "./", torch_dtype=torch.float32, device_map="cuda"
 )
-model.visual.forward = model.visual.forward_onnx
+
+if len(sys.argv)>1 and sys.argv[1]=="two_parts":
+    model.visual.forward = model.visual.forward_onnx_two_parts
+else:
+    model.visual.forward = model.visual.forward_onnx
 # We recommend enabling flash_attention_2 for better acceleration and memory saving, especially in multi-image and video scenarios.
 # model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
 #     "Qwen/Qwen2.5-VL-3B-Instruct",
@@ -51,7 +56,7 @@ inputs = processor(
     padding=True,
     return_tensors="pt",
 )
-print("inputs",inputs)
+
 inputs = inputs.to("cuda")
 
 # Inference: Generation of the output
