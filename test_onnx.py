@@ -23,7 +23,7 @@ else:
 # )
 
 # default processer
-processor = AutoProcessor.from_pretrained("./")
+processor = AutoProcessor.from_pretrained(checkpoint_dir)
 
 # The default range for the number of visual tokens per image in the model is 4-16384.
 # You can set min_pixels and max_pixels according to your needs, such as a token range of 256-1280, to balance performance and cost.
