@@ -2,9 +2,10 @@ export CUDA_VISIBLE_DEVICES=7
 
 set -e 
 
-python run.py
-python export.py 
-python test_onnx.py
+CKPT=../Qwen/Qwen2.5-VL-3B-Instruct/
+python run.py $CKPT
+python export.py $CKPT
+python test_onnx.py $CKPT
 
-# python export_two_parts.py
-# python test_onnx.py two_parts
+# python export_two_parts.py $CKPT
+# python test_onnx.py $CKPT two_parts

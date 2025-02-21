@@ -9,7 +9,7 @@ from modeling_qwen2_5_vl_export import Qwen2_5_VLForConditionalGenerationExport
 from qwen_vl_utils import process_vision_info
 import numpy as np 
 import os
-from merge_vision import merge_onnx_models
+import sys 
 
 def export_onnx(model, input, input_names, output_names, onnx_output):
 
@@ -39,10 +39,10 @@ def generate_attnmask(seq_length, cu_seqlens, device):
 
     return attention_mask
 
-
+checkpoint_dir = sys.argv[1]
 # default: Load the model on the available device(s)
 model = Qwen2_5_VLForConditionalGenerationExport.from_pretrained(
-    "./", torch_dtype=torch.float32, device_map="cpu"
+    checkpoint_dir, torch_dtype=torch.float32, device_map="cpu"
 )
 
 

@@ -1,6 +1,6 @@
 ## [Qwen2.5-VL-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct) Vision Encoder 导出 onnx
 
-### 导出方案
+### 一、导出方案
 该模型的Vision Encoder 比较大，超过了2G，有些特殊。
 所以有三种导出方式：
 #### 1. 导出为一个onnx  
@@ -44,7 +44,7 @@ google.protobuf.message.DecodeError: Error parsing message with type 'onnx.Model
 | bfloat16 | numpy不支持bfloat16，在后续的使用时也会遇到问题。   | 不需要 |
 
 
-### 代码修改  
+### 二、代码修改  
 有些操作不适合在模型中做，我们需要推理过程做一些修改。比如：
 * 模型前部对 `hidden_states`和`rotary_pos_emb`的顺序编排可以放在模型外面
 * 由 `cu_seqlens`生成`attention_mask`的过程  
@@ -60,32 +60,32 @@ transformers                      4.49.0
 pip install git+https://github.com/huggingface/transformers.git@v4.49.0
 ```
 
-### 导出过程
+### 三、导出过程
 
 #### 导出为一个onnx
 1. 生成导出onnx需要的输入
 ```
-python run.py
+python run.py {your checkpoint dir}
 ```
 2. 导出onnx
 ```
-python export.py
+python export.py {your checkpoint dir}
 ```
 3. 测试onnx
 ```
-python test_onnx.py
+python test_onnx.py {your checkpoint dir}
 ```
 
 #### 导出为两个onnx
 1. 生成导出onnx需要的输入
 ```
-python run.py
+python run.py {your checkpoint dir}
 ```
 2. 分层导出onnx
 ```
-python export_two_parts.py
+python export_two_parts.py {your checkpoint dir}
 ```
 3. 测试onnx
 ```
-python test_onnx.py two_parts
+python test_onnx.py {your checkpoint dir} two_parts
 ```

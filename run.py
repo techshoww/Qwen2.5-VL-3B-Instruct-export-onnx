@@ -2,10 +2,12 @@ import torch
 from transformers import  AutoTokenizer, AutoProcessor
 from modeling_qwen2_5_vl_export import Qwen2_5_VLForConditionalGenerationInfer
 from qwen_vl_utils import process_vision_info
+import sys 
 
+checkpoint_dir = sys.argv[1]
 # default: Load the model on the available device(s)
 model = Qwen2_5_VLForConditionalGenerationInfer.from_pretrained(
-    "./", torch_dtype=torch.float32, device_map="cuda"
+    checkpoint_dir, torch_dtype=torch.float32, device_map="cuda"
 )
 
 # We recommend enabling flash_attention_2 for better acceleration and memory saving, especially in multi-image and video scenarios.

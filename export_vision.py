@@ -6,7 +6,7 @@ import onnx
 from onnx import helper
 from transformers import Qwen2_5_VLForConditionalGenerationExport, AutoTokenizer, AutoProcessor
 from qwen_vl_utils import process_vision_info
-
+import sys
 
 class Merger(torch.nn.Module):
     def __init__(self, merger):
@@ -50,10 +50,10 @@ def generate_attnmask(seq_length, cu_seqlens, device):
 
     return attention_mask
 
-
+checkpoint_dir = sys.argv[1]
 # default: Load the model on the available device(s)
 model = Qwen2_5_VLForConditionalGenerationExport.from_pretrained(
-    "./", torch_dtype="auto", device_map="cpu"
+    checkpoint_dir, torch_dtype="auto", device_map="cpu"
 )
 
 # export_model = model.visual

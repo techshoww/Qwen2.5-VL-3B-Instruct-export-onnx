@@ -4,12 +4,13 @@ from modeling_qwen2_5_vl_export import Qwen2_5_VLForConditionalGenerationExport
 from qwen_vl_utils import process_vision_info
 import sys
 
+checkpoint_dir = sys.argv[1]
 # default: Load the model on the available device(s)
 model = Qwen2_5_VLForConditionalGenerationExport.from_pretrained(
-    "./", torch_dtype=torch.float32, device_map="cuda"
+    checkpoint_dir, torch_dtype=torch.float32, device_map="cuda"
 )
 
-if len(sys.argv)>1 and sys.argv[1]=="two_parts":
+if len(sys.argv)>2 and sys.argv[2]=="two_parts":
     model.visual.forward = model.visual.forward_onnx_two_parts
 else:
     model.visual.forward = model.visual.forward_onnx
