@@ -13,9 +13,9 @@ RuntimeError: The model does not have an ir_version set properly.
 ```
 报这个错并不是因为没有设置 opset_version或ir_version，是因为太大了，这个API处理不了。
 
-应该使用二进制程序 `onnxsim`，只要安装了python onnxsim 就会有这个程序。执行命令
+使用本代码自带的二进制程序 `onnxsim`可以优化成功（pip install onnxsim 安装的包不行，不知道是哪里的问题，暂不深究）。执行命令
 ```
-onnxsim {input onnx} {output onnx}
+./onnxsim {input onnx} {output onnx}
 ```
 命令执行完成后会导出两个文件，一个后缀名为".onnx"，存放计算图。一个后缀名为".onnx.data"，存放权重数据。
 
@@ -57,7 +57,7 @@ transformers                      4.49.0
 ```
 安装命令：
 ```
-pip install git+https://github.com/huggingface/transformers.git@v4.49.0
+pip install transformers==4.49.0
 ```
 
 ### 三、导出过程

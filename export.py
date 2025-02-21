@@ -25,9 +25,8 @@ def export_onnx(model, input, input_names, output_names, onnx_output):
     onnx_model = onnx.load(onnx_output)
     print("IR 版本:", onnx_model.ir_version)
     print("操作集:", onnx_model.opset_import)
-    onnx_model = infer_shapes(onnx_model)
-    # convert model
-    os.system(f"onnxsim {onnx_output} {onnx_output}")
+    # simplify model
+    os.system(f"./onnxsim {onnx_output} {onnx_output}")
 
 def generate_attnmask(seq_length, cu_seqlens, device):
     attention_mask = torch.zeros([1, seq_length, seq_length], device=device, dtype=torch.bool)
