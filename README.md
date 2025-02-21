@@ -2,7 +2,7 @@
 
 ### 导出方案
 该模型的Vision Encoder 比较大，超过了2G，有些特殊。
-所以有两种导出方式：
+所以有三种导出方式：
 #### 1. 导出为一个onnx  
 这时要注意，进行simpilify时不能用python API `onnxsim.simplify`，用这个API会报错：
 ```
