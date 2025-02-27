@@ -4,7 +4,7 @@ from modeling_qwen2_5_vl_export import Qwen2_5_VLForConditionalGenerationInfer
 from qwen_vl_utils import process_vision_info
 import sys 
 
-checkpoint_dir = sys.argv[1]
+checkpoint_dir = sys.argv[1] if len(sys.argv)>=2 else "../Qwen/Qwen2.5-VL-3B-Instruct/"
 # default: Load the model on the available device(s)
 model = Qwen2_5_VLForConditionalGenerationInfer.from_pretrained(
     checkpoint_dir, torch_dtype=torch.float32, device_map="cuda"
@@ -19,7 +19,7 @@ model = Qwen2_5_VLForConditionalGenerationInfer.from_pretrained(
 # )
 
 # default processer
-processor = AutoProcessor.from_pretrained(checkpoint_dir)
+processor = AutoProcessor.from_pretrained(checkpoint_dir)   # Qwen2_5_VLProcessor
 
 # The default range for the number of visual tokens per image in the model is 4-16384.
 # You can set min_pixels and max_pixels according to your needs, such as a token range of 256-1280, to balance performance and cost.
@@ -54,8 +54,8 @@ inputs = processor(
     return_tensors="pt",
 )
 
-inputs = inputs.to("cuda")
-
+inputs = inputs.to("cuda")  # 'input_ids', 'attention_mask', 'pixel_values', 'image_grid_thw'
+# input_ids shape [1,281]
 # Inference: Generation of the output
 generated_ids = model.generate(**inputs, max_new_tokens=128)
 generated_ids_trimmed = [

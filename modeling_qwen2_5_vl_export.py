@@ -117,6 +117,7 @@ class Qwen2_5_VisionTransformerPretrainedModelInfer(Qwen2_5_VisionTransformerPre
         Returns:
             `torch.Tensor`: hidden_states.
         """
+        torch.save(hidden_states, "hidden_states.pth")
         hidden_states = self.patch_embed(hidden_states)
         rotary_pos_emb = self.rot_pos_emb(grid_thw)
         window_index, cu_window_seqlens = self.get_window_index(grid_thw)
@@ -147,7 +148,6 @@ class Qwen2_5_VisionTransformerPretrainedModelInfer(Qwen2_5_VisionTransformerPre
         )
         cu_seqlens = F.pad(cu_seqlens, (1, 0), value=0)
 
-        torch.save(hidden_states, "hidden_states.pth")
         torch.save(rotary_pos_emb, "rotary_pos_emb.pth")
         torch.save(cu_seqlens, "cu_seqlens.pth")
         torch.save(cu_window_seqlens, "cu_window_seqlens.pth")
@@ -194,8 +194,8 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
 
         self.rotary_pos_emb_ = torch.load("rotary_pos_emb.pth")
 
-        window_index = torch.load("window_index.pth")
-        self.reverse_indices = torch.argsort(window_index)
+        self.window_index = torch.load("window_index.pth")
+        self.reverse_indices = torch.argsort(self.window_index)
 
         self.blocks = nn.ModuleList(
             [Qwen2_5_VLVisionBlockExport(config, config._attn_implementation) for _ in range(config.depth)]
@@ -208,6 +208,12 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
         self.attention_mask_window = self.attention_mask_window.to(device)
         self.rotary_pos_emb_ = self.rotary_pos_emb_.to(device)
         self.reverse_indices = self.reverse_indices.to(device)
+
+        hidden_states = self.patch_embed(hidden_states)
+        seq_len, _ = hidden_states.size()
+        hidden_states = hidden_states.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
+        hidden_states = hidden_states[self.window_index, :, :]
+        hidden_states = hidden_states.reshape(seq_len, -1)
 
         for layer_num, blk in enumerate(self.blocks):
             if layer_num in self.fullatt_block_indexes:
@@ -228,6 +234,12 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
         return hidden_states
 
     def forward_export_part1(self, hidden_states):
+
+        hidden_states = self.patch_embed(hidden_states)
+        seq_len, _ = hidden_states.size()
+        hidden_states = hidden_states.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
+        hidden_states = hidden_states[self.window_index, :, :]
+        hidden_states = hidden_states.reshape(seq_len, -1)
 
         device = hidden_states.device
         self.attention_mask = self.attention_mask.to(device)
@@ -296,7 +308,6 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
             return attention_mask
         print("Qwen2_5_VisionTransformerPretrainedModel grid_thw",grid_thw)
         print("Qwen2_5_VisionTransformerPretrainedModel hidden_states",hidden_states.shape)              # [14308, 1176]
-        hidden_states = self.patch_embed(hidden_states)
         rotary_pos_emb = self.rot_pos_emb(grid_thw)
         print("rotary_pos_emb.shape",rotary_pos_emb.shape)      # [14308, 40]
         window_index, cu_window_seqlens = self.get_window_index(grid_thw)
@@ -315,9 +326,6 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
         # 223, 224, 225, 226,   8])
         seq_len, _ = hidden_states.size()
         
-        hidden_states = hidden_states.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)  # 14308//4, 4, 1280  # patch index  2x2 合 1
-        hidden_states = hidden_states[window_index, :, :]                                                       # 安装 window 内patch的顺序编排                                              
-        hidden_states = hidden_states.reshape(seq_len, -1)
         rotary_pos_emb = rotary_pos_emb.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)    
         rotary_pos_emb = rotary_pos_emb[window_index, :, :]
         rotary_pos_emb = rotary_pos_emb.reshape(seq_len, -1)
@@ -339,7 +347,6 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
         
         inputs = {"hidden_states": hidden_states.cpu().numpy().astype(np.float32),}
         hidden_states = session1.run(["hidden_states_out"], inputs)[0]
-
         hidden_states = torch.from_numpy(hidden_states).to(grid_thw.device)
         return hidden_states
 
@@ -362,7 +369,7 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
             return attention_mask
         print("Qwen2_5_VisionTransformerPretrainedModel grid_thw",grid_thw)
         print("Qwen2_5_VisionTransformerPretrainedModel hidden_states",hidden_states.shape)              # [14308, 1176]
-        hidden_states = self.patch_embed(hidden_states)
+        
         rotary_pos_emb = self.rot_pos_emb(grid_thw)
         print("rotary_pos_emb.shape",rotary_pos_emb.shape)      # [14308, 40]
         window_index, cu_window_seqlens = self.get_window_index(grid_thw)
@@ -381,9 +388,6 @@ class Qwen2_5_VisionTransformerPretrainedModelExport(Qwen2_5_VisionTransformerPr
         # 223, 224, 225, 226,   8])
         seq_len, _ = hidden_states.size()
         
-        hidden_states = hidden_states.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)  # 14308//4, 4, 1280  # patch index  2x2 合 1
-        hidden_states = hidden_states[window_index, :, :]                                                       # 安装 window 内patch的顺序编排                                              
-        hidden_states = hidden_states.reshape(seq_len, -1)
         rotary_pos_emb = rotary_pos_emb.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)    
         rotary_pos_emb = rotary_pos_emb[window_index, :, :]
         rotary_pos_emb = rotary_pos_emb.reshape(seq_len, -1)

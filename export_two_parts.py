@@ -60,6 +60,8 @@ onnx_output_part1 = f"Qwen2.5-VL-3B-Instruct_vision_part1.onnx"
 output_names = [f"hidden_states_out"]
 export_onnx(export_model, input, input_names, output_names, onnx_output_part1)    
 
+hidden_states = torch.zeros((1024,1280), dtype=torch.float32).to(device)
+input = ( hidden_states)
 
 export_model.forward = export_model.forward_export_part2
 onnx_output_part2 = f"Qwen2.5-VL-3B-Instruct_vision_part2.onnx"
