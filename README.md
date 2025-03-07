@@ -6,20 +6,8 @@
 该模型的Vision Encoder 比较大，超过了2G，有些特殊。
 所以有三种导出方式：
 #### 1. 导出为一个onnx  
-这时要注意，进行simpilify时不能用python API `onnxsim.simplify`，用这个API会报错：
-```
-packages/onnxsim/onnx_simplifier.py", line 199, in simplify
-    model_opt_bytes = C.simplify(
-                      ^^^^^^^^^^^
-RuntimeError: The model does not have an ir_version set properly.
-```
-报这个错并不是因为没有设置 opset_version或ir_version，是因为太大了，这个API处理不了。
 
-使用本代码自带的二进制程序 `onnxsim`可以优化成功（pip install onnxsim 安装的包不行，不知道是哪里的问题，暂不深究）。执行命令
-```
-./onnxsim {input onnx} {output onnx}
-```
-命令执行完成后会导出两个文件，一个后缀名为".onnx"，存放计算图。一个后缀名为".onnx.data"，存放权重数据。
+后会导出两个文件，一个后缀名为".onnx"，存放计算图。一个后缀名为".onnx.data"，存放权重数据。
 
 #### 2. 导出为多个onnx  
 把模型forward逻辑切开，导出为多个onnx。这个模型最少导出为两个部分（图片尺寸448x448），如果图片尺寸比较大，需要切分为更多部分。
