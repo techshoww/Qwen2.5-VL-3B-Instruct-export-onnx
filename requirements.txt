@@ -1,5 +1,7 @@
 onnx==1.17.0
-onnxruntime==1.20.1
+onnxruntime==1.19.2
 onnxsim==0.4.36
+onnx-graphsurgeon==0.5.2
+onnxcli==0.2.1
 transformers==4.49.0
 torch==2.4.0

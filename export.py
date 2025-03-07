@@ -2,7 +2,6 @@ import torch
 import onnx
 from onnx.shape_inference import infer_shapes
 import onnxsim
-import onnx
 from onnx import helper
 from transformers import  AutoTokenizer, AutoProcessor
 from modeling_qwen2_5_vl_export import Qwen2_5_VLForConditionalGenerationExport
@@ -25,8 +24,14 @@ def export_onnx(model, input, input_names, output_names, onnx_output):
     onnx_model = onnx.load(onnx_output)
     print("IR 版本:", onnx_model.ir_version)
     print("操作集:", onnx_model.opset_import)
-    # simplify model
-    os.system(f"./onnxsim {onnx_output} {onnx_output}")
+    # convert model
+    model_simp, check = onnxsim.simplify(onnx_model)
+    assert check, "Simplified ONNX model could not be validated"
+    onnx.save(model_simp, onnx_output, 
+            save_as_external_data=True,
+            all_tensors_to_one_file=True,
+            location=onnx_output+".data",)
+    print("onnx simpilfy successed, and model saved in {}".format(onnx_output))
 
 def generate_attnmask(seq_length, cu_seqlens, device):
     attention_mask = torch.zeros([1, seq_length, seq_length], device=device, dtype=torch.bool)
