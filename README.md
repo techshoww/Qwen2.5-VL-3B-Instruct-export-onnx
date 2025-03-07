@@ -1,5 +1,7 @@
 ## [Qwen2.5-VL-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct) Vision Encoder 导出 onnx
 
+懒人下载链接 https://github.com/AXERA-TECH/Qwen2.5-VL-3B-Instruct.axera/releases/download/v1.0.0/models.tar.gz  
+
 ### 一、导出方案
 该模型的Vision Encoder 比较大，超过了2G，有些特殊。
 所以有三种导出方式：
