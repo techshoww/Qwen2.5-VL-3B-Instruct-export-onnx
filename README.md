@@ -79,3 +79,7 @@ python export_two_parts.py {your checkpoint dir}
 ```
 python test_onnx.py {your checkpoint dir} two_parts
 ```
+
+## 相关项目  
+https://github.com/techshoww/Qwen2.5-VL-3B-Instruct.axera.git  
+这里有更多大模型示例 https://github.com/AXERA-TECH
